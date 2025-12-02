@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <title>AI 플랭크 자세 교정기</title>
+
+  <!-- Teachable Machine + TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -17,8 +20,8 @@
       justify-content: center;
       padding: 24px;
 
-      /* 👉 너가 보내준 헬스장 사진 배경 적용 */
-      background-image: url("https://raw.githubusercontent.com/nakhyeon-ai/plank-posture-coach/main/gym-bg.jpg");
+      /* 헬스장 배경 (repo에 gym-bg.jpg가 올라가 있다고 가정) */
+      background-image: url("gym-bg.jpg");
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -26,12 +29,12 @@
       position: relative;
     }
 
-    /* 👉 배경을 어둡게 덧씌워서 글자와 웹캠이 잘 보이도록 */
+    /* 배경을 살짝 어둡게 */
     body::before {
       content: "";
       position: absolute;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45); /* 어두운 오버레이 */
+      background: rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(1px);
       z-index: 0;
     }
@@ -68,8 +71,8 @@
       justify-content: center;
     }
 
-    /* 👉 웹캠 크게 보이게 설정 */
-    #webcam {
+    /* Teachable Machine이 만들어주는 캔버스 스타일 */
+    #webcam-container canvas {
       width: 100%;
       max-width: 720px;
       border-radius: 16px;
@@ -77,8 +80,15 @@
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
     }
 
+    #label {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      text-align: center;
+      color: #64748b;
+    }
+
     #message {
-      margin-top: 16px;
+      margin-top: 8px;
       font-size: 1.2rem;
       font-weight: 600;
       text-align: center;
@@ -100,9 +110,7 @@
       transition: 0.2s;
     }
 
-    button:hover {
-      filter: brightness(1.1);
-    }
+    button:hover { filter: brightness(1.1); }
   </style>
 </head>
 
@@ -110,31 +118,101 @@
   <div class="card">
     <h1>플랭크 자세 교정기</h1>
     <p class="subtitle">
-      아래 버튼을 눌러 카메라를 켜고, 나중에는 Teachable Machine으로 자세를 분석할 예정입니다.
+      버튼을 눌러 카메라를 켜면, Teachable Machine이 플랭크 자세를 실시간으로 분류하고
+      텍스트와 음성으로 피드백을 줍니다.
     </p>
 
-    <button onclick="startCamera()">카메라 켜기</button>
+    <button onclick="init()">카메라 켜기</button>
 
-    <div id="webcam-container">
-      <video id="webcam" autoplay playsinline></video>
-    </div>
-
+    <div id="webcam-container"></div>
+    <div id="label">아직 인식 전입니다.</div>
     <div id="message">카메라를 켜고 플랭크 자세를 취해보세요!</div>
   </div>
 
   <script>
-    async function startCamera() {
-      const video = document.getElementById("webcam");
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        document.getElementById("message").innerText =
-          "카메라가 켜졌어요! 나중에는 여기에서 AI가 자세를 분석해줄 거예요.";
-      } catch (err) {
-        console.error(err);
-        document.getElementById("message").innerText =
-          "카메라를 사용할 수 없어요. 브라우저 권한을 확인해 주세요.";
+    // ✅ 네 Teachable Machine 모델 URL
+    const URL = "https://teachablemachine.withgoogle.com/models/VOc3k_qRC/";
+
+    let model, webcam, maxPredictions;
+    let lastPosture = "";
+    let lastSpeakTime = 0;
+
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      const flip = true; // 셀카처럼 좌우 반전
+      webcam = new tmImage.Webcam(640, 480, flip);
+      await webcam.setup();      // 카메라 권한 요청
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      document.getElementById("webcam-container").appendChild(webcam.canvas);
+      document.getElementById("message").innerText =
+        "카메라가 켜졌어요! 플랭크 자세를 유지해 보세요.";
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+
+      // 가장 확률 높은 자세 찾기
+      let bestClass = "";
+      let bestProb = 0;
+
+      for (let i = 0; i < prediction.length; i++) {
+        if (prediction[i].probability > bestProb) {
+          bestProb = prediction[i].probability;
+          bestClass = prediction[i].className;
+        }
       }
+
+      // label에 확률 정보 표시
+      document.getElementById("label").innerText =
+        `현재 자세: ${bestClass} (${(bestProb * 100).toFixed(1)}%)`;
+
+      // 👉 여기서 Teachable Machine 클래스 이름에 맞춰서 메시지 분기
+      let msg = "";
+
+      if (bestProb < 0.7) {
+        msg = "자세를 인식하는 중이에요. 플랭크를 조금만 더 유지해 주세요!";
+      } else if (bestClass === "좋아요!") {
+        msg = "좋아요! 지금 자세를 그대로 유지해 보세요 💪";
+      } else if (bestClass === "허리 높아요!") {
+        msg = "허리가 너무 높아요! 어깨-골반-발목이 일직선이 되도록 엉덩이를 살짝 내려주세요.";
+      } else if (bestClass === "허리 낮아요!") {
+        msg = "엉덩이가 너무 낮아요! 복부에 힘을 주고 엉덩이를 조금 들어 올려보세요.";
+      } else {
+        msg = "자세를 다시 한 번 잡아볼까요?";
+      }
+
+      document.getElementById("message").innerText = msg;
+
+      // 음성 안내: 자세가 바뀌었고, 3초 이상 지난 경우에만 말하기
+      const now = Date.now();
+      if (msg && bestClass !== lastPosture && now - lastSpeakTime > 3000) {
+        speak(msg);
+        lastPosture = bestClass;
+        lastSpeakTime = now;
+      }
+    }
+
+    // 브라우저 내장 TTS (텍스트를 음성으로 읽어줌)
+    function speak(text) {
+      if (!("speechSynthesis" in window)) return;
+
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "ko-KR";
+      window.speechSynthesis.cancel(); // 이전 음성 취소
+      window.speechSynthesis.speak(utter);
     }
   </script>
 </body>
