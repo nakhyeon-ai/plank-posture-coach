@@ -29,7 +29,7 @@
       position: relative;
     }
 
-    /* 배경 어두운 레이어 */
+    /* 배경 어둡게 */
     body::before {
       content: "";
       position: absolute;
@@ -39,7 +39,6 @@
       z-index: 0;
     }
 
-    /* 메인 카드 UI */
     .card {
       width: 100%;
       max-width: 900px;
@@ -72,13 +71,18 @@
       justify-content: center;
     }
 
-    /* 웹캠 캔버스 */
+    /* TM이 그리는 캔버스 한 개만 보이게 */
     #webcam-container canvas {
       width: 100%;
       max-width: 720px;
       border-radius: 16px;
       background: black;
       box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+    }
+
+    /* 혹시 남아 있을 수 있는 예전 <video>는 전부 숨기기 */
+    video {
+      display: none !important;
     }
 
     #label {
@@ -158,7 +162,7 @@
       await webcam.play();
 
       const container = document.getElementById("webcam-container");
-      container.innerHTML = "";            // 기존 화면 제거
+      container.innerHTML = "";            // 혹시 남아있던 것들 제거
       container.appendChild(webcam.canvas);
 
       document.getElementById("message").innerText =
@@ -205,7 +209,6 @@
 
       document.getElementById("message").innerText = msg;
 
-      // 음성 안내: 3초마다, 다른 자세일 때만
       const now = Date.now();
       if (msg && bestClass !== lastPosture && now - lastSpeakTime > 3000) {
         speak(msg);
