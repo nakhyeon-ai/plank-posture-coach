@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>플랭크 자세 교정기 (초기 버전)</title>
+  <style>
+    body { 
+      font-family: system-ui, sans-serif; 
+      text-align: center; 
+      padding: 20px; 
+      background: #f5f5f5;
+    }
+    h1 { margin-bottom: 4px; }
+    #webcam-container { margin-top: 16px; }
+    video { 
+      border-radius: 12px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    #message { 
+      margin-top: 12px; 
+      font-size: 1.1rem; 
+      font-weight: 600; 
+    }
+    button { 
+      padding: 8px 16px; 
+      margin-top: 8px; 
+      cursor: pointer; 
+      border-radius: 8px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-size: 1rem;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <h1>플랭크 자세 교정기</h1>
+  <p>지금은 웹캠만 켜지고, 나중에 AI(Teachable Machine)를 붙여서 자세를 분석할 거예요.</p>
+
+  <button onclick="startCamera()">카메라 켜기</button>
+
+  <div id="webcam-container">
+    <video id="webcam" width="320" height="240" autoplay playsinline></video>
+  </div>
+
+  <div id="message">카메라를 켜고 플랭크 자세를 취해보세요!</div>
+
+  <script>
+    async function startCamera() {
+      const video = document.getElementById('webcam');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        document.getElementById('message').innerText =
+          "카메라가 켜졌어요! 나중에는 여기에서 AI가 자세를 분석해줄 거예요.";
+      } catch (err) {
+        console.error(err);
+        document.getElementById('message').innerText =
+          "카메라를 사용할 수 없어요. 브라우저 권한을 확인해 주세요.";
+      }
+    }
+  </script>
+</body>
+</html>
